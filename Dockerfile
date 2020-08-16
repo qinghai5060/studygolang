@@ -1,10 +1,8 @@
 # Start from golang v1.12 base image
-FROM golang:1.12
+FROM alpine
 
-WORKDIR /app/studygolang
+WORKDIR /app/studyrust
 
-COPY . /app/studygolang
+COPY bin /app/studyrust && COPY config /app/studyrust && COPY static /app/studyrust
 
-RUN make build
-
-CMD ["bin/studygolang"]
+CMD ["bin/studyrust"]
