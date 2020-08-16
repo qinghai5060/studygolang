@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -e
 # ***************************************************************************
 # *
 # * @author:jockerxu
@@ -11,10 +11,6 @@
 STUDYRUST_IMG=${1:-"studyrust"}
 MYSQL_ROOT_PASSWORD=${2:-123456}
 current_workdir=$(cd `dirname $0`;pwd)
-sed -i "s/MYSQL_ROOT_PASSWD/${MYSQL_ROOT_PASSWORD}/g" ${current_workdir}/config/env.sample.ini
-
-addr=$(ip -o -4 a s |grep 'scope global dynamic'|awk '{print $4}' |cut -d '/' -f1)
-sed -i "s/HOST_ADDRESS/$addr/g" ${current_workdir}/config/env.sample.ini
 
 #---------tool function---------------
 echo_COLOR_GREEN=$(  echo -e "\e[32;49m")
@@ -29,31 +25,43 @@ if [[ $USER != "root" ]]; then
     exit 1
 fi
 
-if [[ $1 == "" ]]; then
-    echo "Usage start-docker.sh [local | remote]"
-    exit 1
-fi
+function clean_containers() {
+    set +e
+    docker ps -a | grep -q mysqlDB && docker rm -f mysqlDB
+    docker ps -a | grep -q studyrust && docker rm -f studyrust
+    set -e
+}
 
-
-function build_go() {
+function build_new_image(){
     docker run -ti --rm -v $current_workdir:/opt/studyrust  golang:1.12.17 /bin/sh -c "cd /opt/studyrust && make build"
+    docker build -t $STUDYRUST_IMG .
 }
-build_go
 
+function prepare_config(){
+    sed -i "s/MYSQL_ROOT_PASSWD/${MYSQL_ROOT_PASSWORD}/g" ${current_workdir}/config/env.ini
 
-docker build -t $STUDYRUST_IMG .
-docker ps -a | grep -q mysqlDB || {
+    addr=$(ip -o -4 a s |grep 'scope global dynamic'|awk '{print $4}' |cut -d '/' -f1)
+    sed -i "s/HOST_ADDRESS/$addr/g" ${current_workdir}/config/env.ini
+}
+
+function run_studyrust(){
     docker run --name mysqlDB -e MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} -d mysql
+    docker run -d --rm --name studyrust -p ${addr}:8090:8088 --link mysqlDB:db.localhost $STUDYRUST_IMG
+    if [[ $? == 0 ]]; then
+        echo-info "studyrust-web start, waiting several seconds to install..."
+        sleep 5
+        echo-info "open browser: http://localhost:8090"
+        echo-info "mysql-host is: db.localhost "
+        echo-info "mysql-password is: ${MYSQL_ROOT_PASSWORD}"
+    fi
 }
-docker ps -a | grep -q studyrust && {
-    docker rm -f studyrust
-}
-docker run -d --rm --name studygolang-web -p 8090:8088 --link mysqlDB:db.localhost $STUDYGOLANG_IMG
 
-if [[ $? == 0 ]]; then
-    echo-info "studyrust-web start, waiting several seconds to install..."
-    sleep 5
-    echo-info "open browser: http://localhost:8090"
-    echo-info "mysql-host is: db.localhost "
-    echo-info "mysql-password is: ${MYSQL_ROOT_PASSWORD}"
-fi
+function main(){
+    clean_containers
+    build_new_image
+    prepare_config
+    run_studyrust
+}
+
+main
+
