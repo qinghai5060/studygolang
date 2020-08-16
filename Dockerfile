@@ -1,8 +1,10 @@
 # Start from golang v1.12 base image
 FROM alpine
 
-WORKDIR /app/studyrust
+COPY bin /app/studyrust/bin
+COPY config /app/studyrust/config
+COPY static /app/studyrust/static
 
-COPY bin /app/studyrust && COPY config /app/studyrust && COPY static /app/studyrust
+WORKDIR /app/studyrust
 
 CMD ["bin/studyrust"]

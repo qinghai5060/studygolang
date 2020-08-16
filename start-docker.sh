@@ -8,7 +8,7 @@
 # * @description: Shell script
 #*
 #**************************************************************************/
-
+STUDYRUST_IMG=${1:-"studyrust"}
 MYSQL_ROOT_PASSWORD=${2:-123456}
 current_workdir=$(cd `dirname $0`;pwd)
 sed -i "s/MYSQL_ROOT_PASSWD/${MYSQL_ROOT_PASSWORD}/g" ${current_workdir}/config/env.sample.ini
@@ -38,27 +38,17 @@ fi
 function build_go() {
     docker run -ti --rm -v $current_workdir:/opt/studyrust  golang:1.12.17 /bin/sh -c "cd /opt/studyrust && make build"
 }
+build_go
 
-STUDYGOLANG_IMG=
 
-if [[ $1 == "local" ]]; then
-    STUDYGOLANG_IMG=studyrust
-    docker images ${STUDYGOLANG_IMG} | grep -q ${STUDYGOLANG_IMG} || {
-        docker build -f Dockerfile.web -t $STUDYGOLANG_IMG .
-    }
-elif [[ $1 == "remote" ]]; then
-    STUDYGOLANG_IMG="studyrust"
-else
-    exit 1
-fi
-
+docker build -t $STUDYRUST_IMG .
 docker ps -a | grep -q mysqlDB || {
     docker run --name mysqlDB -e MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} -d mysql
 }
-docker ps -a | grep -q studygolang-web && {
-    docker rm -f studygolang-web
+docker ps -a | grep -q studyrust && {
+    docker rm -f studyrust
 }
-docker run -d --rm --name studygolang-web -v `pwd`:/studygolang -p 8090:8088 --link mysqlDB:db.localhost $STUDYGOLANG_IMG ./docker-entrypoint.sh
+docker run -d --rm --name studygolang-web -p 8090:8088 --link mysqlDB:db.localhost $STUDYGOLANG_IMG
 
 if [[ $? == 0 ]]; then
     echo-info "studyrust-web start, waiting several seconds to install..."
